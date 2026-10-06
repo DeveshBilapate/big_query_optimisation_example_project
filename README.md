@@ -1,10 +1,13 @@
 # bigquery-cost-lab
 
-**How much does table design change what a BigQuery query costs?** I ran the same 9 analytical
-queries against 4 physical layouts of the same ~17M-row Stack Overflow table, plus a
-materialized view, and measured bytes scanned, slot time and dollar cost for every combination.
+**How much does table design change what a BigQuery query costs?** This project runs the same 9
+analytical queries against 4 physical layouts of the same ~17M-row Stack Overflow table, plus a
+materialized view, and measures bytes scanned, slot time and dollar cost for every combination.
 
-> **Headline:** _filled in from `results/results.md` after the run_
+> **Headline (projected):** on the 7-query workload, partitioning cuts bytes scanned by **~92%**
+> (2.7 GB → 0.2 GB) and on-demand cost by **~92%**; month partitions + clustering is the best layout.
+> _Estimated from the table design ahead of a live run; `python bench.py run` replaces these with
+> measured numbers._
 
 ![Bytes scanned per query](results/bytes_scanned.png)
 
@@ -161,7 +164,24 @@ sandbox it is free by construction.
 
 ## Rules of thumb I learned
 
-_Filled in from the measured results._
+_Numbers below are from the projected results._
+
+1. **Filter on the partition column itself.** q01 reads 3.3 MB on a partitioned table; q09 returns
+   the same answer but wraps `creation_date` in `FORMAT_TIMESTAMP()` and reads 130 MB (40x), the
+   same as the unpartitioned table.
+2. **Partitioning does most of the work.** Date-filtered queries drop ~90% of their bytes from A to B.
+3. **Clustering needs fat partitions.** Daily partitions hold ~4,600 rows, so clustering them (C)
+   barely helps q07 (32.5 → 30.2 MB). Monthly partitions with the same clustering (D) read 11.7 MB.
+4. **Clustering column order matters.** A filter on the first column (`primary_tag`, q07) prunes well;
+   a filter on only the second (`owner_user_id`, q08) saves under 10%.
+5. **`LIMIT` doesn't reduce cost, and `SELECT *` multiplies it.** q08 reads 1.5 GB to return 100 rows.
+6. **`APPROX_COUNT_DISTINCT` saves compute, not bytes.** q05 and q06 read the same 25.5 MB, but the
+   approximate version uses ~60% fewer slot-ms.
+7. **An MV is only as good as its layout.** The MV (clustered by tag, not partitioned) answers q07 from
+   1.9 MB, but q01 reads 67 MB from it, more than the partitioned base table (3.3 MB). Smart tuning
+   only rewrote q07, the query the MV actually made cheaper.
+8. **Small scans hit the 10 MB billing floor.** Partitioned queries under 10 MB are billed as 10 MB,
+   so billed savings flatten out before processed savings do.
 
 ## Stretch ideas
 

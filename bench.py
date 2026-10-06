@@ -195,7 +195,7 @@ def _mb(b: float) -> str:
     return f"{mb:,.0f}" if mb >= 100 else f"{mb:,.1f}"
 
 
-def report(csv_path: pathlib.Path) -> None:
+def report(csv_path: pathlib.Path, projected: bool = False) -> None:
     data: dict[tuple[str, str], dict] = {}
     for r in csv.DictReader(open(csv_path)):
         data[(r["query"], r["variant"])] = {
@@ -208,8 +208,12 @@ def report(csv_path: pathlib.Path) -> None:
     qids = sorted(names)
     base = list(VARIANTS)
 
-    lines = ["# Results", "",
-             "All numbers come from real BigQuery jobs (`use_query_cache=false`). "
+    source = ("_Projected results: estimated from the table design (row count, column sizes, "
+              "partition sizes) ahead of a live run. `python bench.py run` replaces them with "
+              "measured numbers._"
+              if projected else
+              "All numbers come from real BigQuery jobs (`use_query_cache=false`).")
+    lines = ["# Results" + (" (projected)" if projected else ""), "", source, "",
              "MB = MiB processed (what on-demand billing charges for, before the 10 MB per-table minimum).", "",
              "## Bytes processed (MB)", "",
              "| Query | " + " | ".join(VARIANT_NAMES[v] for v in base) + " | E: MV |",
@@ -269,14 +273,14 @@ def report(csv_path: pathlib.Path) -> None:
     RESULTS.mkdir(exist_ok=True)
     (RESULTS / "results.md").write_text("\n".join(lines) + "\n")
     print("wrote results/results.md")
-    chart(data, names, qids)
+    chart(data, names, qids, projected)
 
 
 def tot_bill(tot_billed: dict, v: str) -> float:
     return tot_billed[v] / tot_billed["a_raw"] if tot_billed["a_raw"] else 1.0
 
 
-def chart(data, names, qids) -> None:
+def chart(data, names, qids, projected: bool = False) -> None:
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -297,7 +301,8 @@ def chart(data, names, qids) -> None:
     ax.set_xticks(x, [names[q].split("_", 1)[1].replace("_", " ") for q in qids],
                   rotation=25, ha="right", fontsize=9, color="#52514e")
     ax.set_ylabel("MB processed (log scale)", color="#52514e")
-    ax.set_title("Bytes scanned per query, by table design (lower is cheaper)",
+    ax.set_title("Bytes scanned per query, by table design (lower is cheaper)"
+                 + (" (projected)" if projected else ""),
                  loc="left", fontsize=12, color="#0b0b0b")
     ax.grid(axis="y", color="#e6e5e0", linewidth=0.6)
     ax.set_axisbelow(True)
@@ -327,13 +332,14 @@ def main(argv=None) -> None:
                    help=f"use {SANDBOX_SHIFT_YEARS} in the BigQuery sandbox (partition expiry workaround)")
     rep = sub.add_parser("report")
     rep.add_argument("csv", type=pathlib.Path)
+    rep.add_argument("--projected", action="store_true", help="label output as projected estimates")
     a = ap.parse_args(argv)
     if a.cmd == "run":
         run(a.project, a.phase, a.max_gb, a.dry_run, a.shift_years)
     elif a.cmd == "emit":
         emit(a.shift_years)
     else:
-        report(a.csv)
+        report(a.csv, a.projected)
 
 
 if __name__ == "__main__":
