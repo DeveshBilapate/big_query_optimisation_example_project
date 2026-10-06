@@ -9,10 +9,6 @@ materialized view, and measures bytes scanned, slot time and dollar cost for eve
 > _Estimated from the table design ahead of a live run; `python bench.py run` replaces these with
 > measured numbers._
 
-![Bytes scanned per query](results/bytes_scanned.png)
-
-Full numbers: [`results/results.csv`](results/results.csv)
-
 ## Environment: BigQuery sandbox
 
 Everything runs in the free **[BigQuery sandbox](https://cloud.google.com/bigquery/docs/sandbox)**:
