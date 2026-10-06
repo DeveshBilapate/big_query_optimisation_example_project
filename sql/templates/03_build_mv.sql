@@ -1,0 +1,13 @@
+-- Run this AFTER the base benchmark. Once the MV exists, BigQuery's "smart tuning"
+-- can silently rewrite matching base-table queries to read the MV, which would
+-- contaminate the A-D numbers.
+CREATE MATERIALIZED VIEW IF NOT EXISTS so_bench.mv_daily_tag_counts
+CLUSTER BY primary_tag
+AS
+SELECT
+  DATE(creation_date) AS day,
+  primary_tag,
+  COUNT(*)            AS questions,
+  SUM(score)          AS total_score
+FROM so_bench.so_part_day_clust
+GROUP BY day, primary_tag;

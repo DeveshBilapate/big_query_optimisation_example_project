@@ -1,0 +1,13 @@
+__pycache__/
+.venv/
+*.pyc
+
+# exported project guide and NotebookLM prompt (personal copies)
+docs/project-guide.pdf
+docs/notebooklm-prompt.md
+
+# macOS
+.DS_Store
+
+# source archives
+*.zip
