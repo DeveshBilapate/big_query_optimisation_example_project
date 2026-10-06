@@ -11,3 +11,6 @@ docs/notebooklm-prompt.md
 
 # source archives
 *.zip
+
+# generated report (regenerate with: python bench.py report results/results.csv)
+results/results.md

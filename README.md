@@ -11,7 +11,23 @@ materialized view, and measures bytes scanned, slot time and dollar cost for eve
 
 ![Bytes scanned per query](results/bytes_scanned.png)
 
-Full numbers: [`results/results.md`](results/results.md)
+Full numbers: [`results/results.csv`](results/results.csv)
+
+## Environment: BigQuery sandbox
+
+Everything runs in the free **[BigQuery sandbox](https://cloud.google.com/bigquery/docs/sandbox)**:
+no billing account and no credit card. The sandbox's limits shaped the design:
+
+| Sandbox limit | Effect on this project |
+|---|---|
+| 1 TB of queries per month, free | The whole lab processes a few GB |
+| 10 GB of storage | `title` and `body` are dropped so all four copies fit |
+| Tables expire after 60 days | Rerun `sql/run/01_build_tables.sql` to rebuild |
+| Partitions forced to expire after 60 days | Dates are shifted +16 years (see the gotcha below) |
+| No DML (`INSERT`/`UPDATE`/`DELETE`) | Every table is built with `CREATE TABLE ... AS SELECT` |
+
+Dollar figures are what the same jobs **would** cost at on-demand rates ($6.25 per TiB); in the
+sandbox they cost nothing. With billing enabled, rebuild with `--shift-years 0` to use real dates.
 
 ## Dataset
 
