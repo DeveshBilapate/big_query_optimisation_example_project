@@ -39,6 +39,66 @@ names. With billing enabled, use `--shift-years 0` and `bench.py` moves the date
 | D | `so_part_month_clust` | `PARTITION BY TIMESTAMP_TRUNC(creation_date, MONTH)` + same clustering |
 | E | `mv_daily_tag_counts` | materialized view: daily counts per `primary_tag`, over C |
 
+## Sample data
+
+_Illustrative rows with the real schema and sandbox-shifted dates (2036 = 2020). They are not
+taken from the dataset._
+
+### A–D: same rows, different physical layout
+
+`so_raw`, `so_part_day`, `so_part_day_clust` and `so_part_month_clust` hold identical data, because
+B–D are copied from A. A query returns the same rows from all four; only the storage differs.
+
+| id | creation_date | owner_user_id | tags | primary_tag | score | view_count | answer_count | accepted_answer_id |
+|---|---|---|---|---|---:|---:|---:|---|
+| 59601134 | 2036-01-05 09:14:22 UTC | 4521876 | `python\|pandas\|dataframe` | python | 3 | 812 | 2 | 59601377 |
+| 59602781 | 2036-01-05 11:02:51 UTC | 1144035 | `javascript\|reactjs` | javascript | 0 | 145 | 1 | NULL |
+| 59610455 | 2036-01-06 16:40:07 UTC | NULL | `java\|spring-boot\|maven` | java | -1 | 97 | 0 | NULL |
+| 59615902 | 2036-01-07 08:21:39 UTC | 8873120 | `python\|django` | python | 5 | 2310 | 3 | 59616044 |
+| 62844719 | 2036-06-14 19:55:13 UTC | 1144035 | `sql\|google-bigquery` | sql | 2 | 430 | 1 | 62845002 |
+
+* `primary_tag` is the first item of `tags`; it gives clustering a single value to sort on.
+* `owner_user_id = NULL` means the account was deleted (why q03/q04 filter `IS NOT NULL`).
+* `1144035` is the user q08 looks up.
+
+How each table stores those rows:
+
+```
+A  so_raw               one pile, no order -> every query reads full columns
+   [ 62844719 sql 06-14 | 59601134 python 01-05 | 59610455 java 01-06 | ... ]
+
+B  so_part_day          one partition per day, unordered inside
+   2036-01-05: [ 59602781 javascript | 59601134 python | ... ]
+   2036-01-06: [ 59610455 java | ... ]
+   2036-06-14: [ 62844719 sql | ... ]
+
+C  so_part_day_clust    same daily partitions, sorted by primary_tag, then owner_user_id
+   2036-01-05: [ javascript/1144035 | python/4521876 | ... ]
+   2036-01-07: [ python/8873120 | ... ]
+
+D  so_part_month_clust  one partition per month (labelled by its 1st day), same sort
+   2036-01-01: [ java/NULL | javascript/1144035 | python/4521876 | python/8873120 | ... ]
+   2036-06-01: [ ... sql/1144035 ... ]
+```
+
+### E: `mv_daily_tag_counts`
+
+One row per day and tag, holding counts instead of questions:
+
+| day | primary_tag | questions | total_score |
+|---|---|---:|---:|
+| 2036-01-05 | javascript | 412 | 198 |
+| 2036-01-05 | python | 538 | 611 |
+| 2036-01-06 | java | 301 | 142 |
+| 2036-01-07 | python | 559 | 702 |
+| 2036-06-14 | sql | 187 | 95 |
+
+The MV stores `total_score` rather than an average because averages can't be re-aggregated;
+q07's MV version computes `SUM(total_score) / SUM(questions)`.
+
+To see real rows for free, use the table's **Preview** tab in the console or
+`bq head -n 5 so_bench.so_raw`. `SELECT * ... LIMIT` scans the whole table (see q08).
+
 ## Queries
 
 | # | What it does | Feature exercised |
